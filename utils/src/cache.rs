@@ -26,7 +26,10 @@ pub fn store(output_name: &str, img_path: &str) -> Result<(), String> {
 }
 
 pub fn store_animation_frames(animation: &Animation) -> Result<(), String> {
-    let filename = animation_filename(&PathBuf::from(&animation.path), animation.dimensions);
+    let filename = animation_filename(
+        &PathBuf::from(&animation.path),
+        animation.dimensions.clone().into(),
+    );
     let mut filepath = cache_dir()?;
     filepath.push(&filename);
 
@@ -69,7 +72,7 @@ pub fn load_animation_frames(
                 .read_to_end(&mut buf)
                 .map_err(|e| format!("failed to read file `{filepath:?}`: {e}"))?;
 
-            let frames = unsafe { rkyv::archived_root::<Animation>(&buf) };
+            let frames = rkyv::check_archived_root::<Animation>(&buf).unwrap();
             let frames: Animation = frames.deserialize(&mut Infallible).unwrap();
 
             return Ok(Some(frames));

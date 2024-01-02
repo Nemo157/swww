@@ -14,7 +14,7 @@ use std::{
 
 use utils::{
     comp_decomp::BitPack,
-    ipc::{self, Coord, Position},
+    ipc::{self, Coord, Position, Tuple2},
 };
 
 use crate::cli::ResizeStrategy;
@@ -108,7 +108,7 @@ pub fn compress_frames(
     filter: FilterType,
     resize: ResizeStrategy,
     color: &[u8; 3],
-) -> Result<Vec<(BitPack, Duration)>, String> {
+) -> Result<Vec<Tuple2<BitPack, Duration>>, String> {
     let mut compressed_frames = Vec::new();
 
     // The first frame should always exist
@@ -116,7 +116,7 @@ pub fn compress_frames(
     let first_duration = first.delay().numer_denom_ms();
     let first_duration = Duration::from_millis((first_duration.0 / first_duration.1).into());
     let first_img = match resize {
-        ResizeStrategy::No => img_pad(frame_to_rgb(first), dim, color)?,
+        ResizeStrategy::No => img_pad(frame_to_rgb(first), dim.into(), color)?,
         ResizeStrategy::Crop => img_resize_crop(frame_to_rgb(first), dim, filter)?,
         ResizeStrategy::Fit => img_resize_fit(frame_to_rgb(first), dim, filter, color)?,
     };
@@ -132,14 +132,17 @@ pub fn compress_frames(
             ResizeStrategy::Fit => img_resize_fit(frame_to_rgb(frame), dim, filter, color)?,
         };
 
-        compressed_frames.push((
+        compressed_frames.push(Tuple2(
             BitPack::pack(canvas.as_ref().unwrap_or(&first_img), &img)?,
             duration,
         ));
         canvas = Some(img);
     }
     //Add the first frame we got earlier:
-    compressed_frames.push((BitPack::pack(&canvas.unwrap(), &first_img)?, first_duration));
+    compressed_frames.push(Tuple2(
+        BitPack::pack(&canvas.unwrap(), &first_img)?,
+        first_duration,
+    ));
     Ok(compressed_frames)
 }
 
@@ -415,11 +418,11 @@ pub fn make_transition(img: &cli::Img) -> ipc::Transition {
         duration: img.transition_duration,
         step,
         fps: img.transition_fps,
-        bezier: img.transition_bezier,
+        bezier: img.transition_bezier.into(),
         angle,
         pos,
         transition_type,
-        wave: img.transition_wave,
+        wave: img.transition_wave.into(),
         invert_y: img.invert_y,
     }
 }

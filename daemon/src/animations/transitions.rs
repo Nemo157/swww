@@ -87,7 +87,7 @@ impl Transition {
                     y: transition.bezier.3,
                 },
             ),
-            wave: transition.wave,
+            wave: transition.wave.into(),
             invert_y: transition.invert_y,
         }
     }

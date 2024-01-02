@@ -16,7 +16,7 @@
 //!
 
 use lzzzz::lz4f;
-use rkyv::{Archive, Deserialize, Serialize};
+use rkyv::{bytecheck, Archive, CheckBytes, Deserialize, Serialize};
 
 lazy_static::lazy_static! {
     static ref COMPRESSION_PREFERENCES: lz4f::Preferences = lz4f::PreferencesBuilder::new()
@@ -104,6 +104,7 @@ fn unpack_bytes(buf: &mut [u8], diff: &[u8]) {
 
 /// This struct represents the cached difference between the previous frame and the next
 #[derive(Archive, Serialize, Deserialize)]
+#[archive_attr(derive(CheckBytes))]
 pub struct BitPack {
     inner: Box<[u8]>,
     /// This field will ensure we won't ever try to unpack the images on a buffer of the wrong size,

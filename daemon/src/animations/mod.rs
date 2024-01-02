@@ -8,7 +8,8 @@ use std::{
 };
 
 use utils::ipc::{
-    Answer, ArchivedAnimation, ArchivedImg, ArchivedRequest, ArchivedTransition, BgImg, Request,
+    Answer, ArchivedAnimation, ArchivedImg, ArchivedRequest, ArchivedTransition, ArchivedTuple2,
+    BgImg, Request,
 };
 
 use crate::wallpaper::{AnimationToken, Wallpaper};
@@ -74,9 +75,11 @@ impl Animator {
             .stack_size(1 << 15)
             .name("transition spawner".to_string())
             .spawn(move || {
-                if let ArchivedRequest::Img((transition, imgs)) = Request::receive(&bytes) {
+                if let ArchivedRequest::Img(ArchivedTuple2(transition, imgs)) =
+                    Request::receive(&bytes)
+                {
                     thread::scope(|s| {
-                        for ((ArchivedImg { img, path }, _), wallpapers) in
+                        for (ArchivedTuple2(ArchivedImg { img, path }, _), wallpapers) in
                             imgs.iter().zip(wallpapers)
                         {
                             Self::spawn_transition_thread(s, transition, img, path, wallpapers);
@@ -127,7 +130,7 @@ impl Animator {
 
                 let mut now = std::time::Instant::now();
 
-                for (frame, duration) in animation.animation.iter().cycle() {
+                for ArchivedTuple2(frame, duration) in animation.animation.iter().cycle() {
                     let duration: Duration = duration.deserialize(&mut rkyv::Infallible).unwrap();
                     barrier.wait(duration.div_f32(2.0));
 
@@ -174,7 +177,9 @@ impl Animator {
             .spawn(move || {
                 thread::scope(|s| {
                     if let ArchivedRequest::Animation(animations) = Request::receive(&bytes) {
-                        for ((animation, _), wallpapers) in animations.iter().zip(wallpapers) {
+                        for (ArchivedTuple2(animation, _), wallpapers) in
+                            animations.iter().zip(wallpapers)
+                        {
                             let barrier = barrier.clone();
                             Self::spawn_animation_thread(s, animation, wallpapers, barrier);
                         }

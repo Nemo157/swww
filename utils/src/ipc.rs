@@ -1,4 +1,4 @@
-use rkyv::{Archive, Deserialize, Serialize};
+use rkyv::{bytecheck, Archive, CheckBytes, Deserialize, Serialize};
 use std::{
     fmt,
     io::{BufReader, BufWriter, Read, Write},
@@ -9,15 +9,96 @@ use std::{
 
 use crate::{cache, comp_decomp::BitPack};
 
+#[derive(Clone, Archive, Serialize, Deserialize)]
+#[archive_attr(derive(CheckBytes))]
+pub struct Tuple2<T, U>(pub T, pub U);
+
+impl<T, U> From<Tuple2<T, U>> for (T, U) {
+    fn from(Tuple2(t, u): Tuple2<T, U>) -> (T, U) {
+        (t, u)
+    }
+}
+
+impl<T, U> From<(T, U)> for Tuple2<T, U> {
+    fn from((t, u): (T, U)) -> Tuple2<T, U> {
+        Tuple2(t, u)
+    }
+}
+
+impl<T: Archive, U: Archive> From<ArchivedTuple2<T, U>> for (T::Archived, U::Archived) {
+    fn from(ArchivedTuple2(t, u): ArchivedTuple2<T, U>) -> (T::Archived, U::Archived) {
+        (t, u)
+    }
+}
+
+impl<T: Archive, U: Archive> From<(T::Archived, U::Archived)> for ArchivedTuple2<T, U> {
+    fn from((t, u): (T::Archived, U::Archived)) -> ArchivedTuple2<T, U> {
+        ArchivedTuple2(t, u)
+    }
+}
+
+impl<T: Archive, U: Archive> Clone for ArchivedTuple2<T, U>
+where
+    T::Archived: Clone,
+    U::Archived: Clone,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), self.1.clone())
+    }
+}
+
+#[derive(Clone, Archive, Serialize, Deserialize)]
+#[archive_attr(derive(CheckBytes))]
+pub struct Tuple4<T, U, V, W>(pub T, pub U, pub V, pub W);
+
+impl<T, U, V, W> From<Tuple4<T, U, V, W>> for (T, U, V, W) {
+    fn from(Tuple4(t, u, v, w): Tuple4<T, U, V, W>) -> (T, U, V, W) {
+        (t, u, v, w)
+    }
+}
+
+impl<T, U, V, W> From<(T, U, V, W)> for Tuple4<T, U, V, W> {
+    fn from((t, u, v, w): (T, U, V, W)) -> Tuple4<T, U, V, W> {
+        Tuple4(t, u, v, w)
+    }
+}
+
+impl<T: Archive, U: Archive, V: Archive, W: Archive>
+    From<(T::Archived, U::Archived, V::Archived, W::Archived)> for ArchivedTuple4<T, U, V, W>
+{
+    fn from(
+        (t, u, v, w): (T::Archived, U::Archived, V::Archived, W::Archived),
+    ) -> ArchivedTuple4<T, U, V, W> {
+        ArchivedTuple4(t, u, v, w)
+    }
+}
+
+impl<T: Archive, U: Archive, V: Archive, W: Archive> Clone for ArchivedTuple4<T, U, V, W>
+where
+    T::Archived: Clone,
+    U::Archived: Clone,
+    V::Archived: Clone,
+    W::Archived: Clone,
+{
+    fn clone(&self) -> Self {
+        Self(
+            self.0.clone(),
+            self.1.clone(),
+            self.2.clone(),
+            self.3.clone(),
+        )
+    }
+}
+
 #[derive(PartialEq, Archive, Serialize)]
-#[archive_attr(derive(Clone))]
+#[archive_attr(derive(Clone, CheckBytes))]
 pub enum Coord {
     Pixel(f32),
     Percent(f32),
 }
 
 #[derive(PartialEq, Archive, Serialize)]
-#[archive_attr(derive(Clone))]
+#[archive_attr(derive(Clone, CheckBytes))]
 pub struct Position {
     pub x: Coord,
     pub y: Coord,
@@ -102,7 +183,7 @@ impl ArchivedPosition {
 }
 
 #[derive(PartialEq, Clone, Archive, Serialize, Deserialize)]
-#[archive_attr(derive(PartialEq))]
+#[archive_attr(derive(PartialEq, CheckBytes))]
 pub enum BgImg {
     Color([u8; 3]),
     Img(String),
@@ -139,9 +220,10 @@ impl fmt::Display for ArchivedBgImg {
 }
 
 #[derive(Clone, Archive, Serialize)]
+#[archive_attr(derive(CheckBytes))]
 pub struct BgInfo {
     pub name: String,
-    pub dim: (u32, u32),
+    pub dim: Tuple2<u32, u32>,
     pub scale_factor: i32,
     pub img: BgImg,
 }
@@ -167,7 +249,7 @@ impl fmt::Display for ArchivedBgInfo {
 }
 
 #[derive(Archive, Serialize)]
-#[archive_attr(derive(Clone))]
+#[archive_attr(derive(Clone, CheckBytes))]
 pub enum TransitionType {
     Simple,
     Fade,
@@ -178,7 +260,7 @@ pub enum TransitionType {
 }
 
 #[derive(Archive, Serialize)]
-#[archive_attr(derive(Clone))]
+#[archive_attr(derive(Clone, CheckBytes))]
 pub struct Transition {
     pub transition_type: TransitionType,
     pub duration: f32,
@@ -186,34 +268,38 @@ pub struct Transition {
     pub fps: u8,
     pub angle: f64,
     pub pos: Position,
-    pub bezier: (f32, f32, f32, f32),
-    pub wave: (f32, f32),
+    pub bezier: Tuple4<f32, f32, f32, f32>,
+    pub wave: Tuple2<f32, f32>,
     pub invert_y: bool,
 }
 
 #[derive(Archive, Serialize)]
+#[archive_attr(derive(CheckBytes))]
 pub struct Clear {
     pub color: [u8; 3],
     pub outputs: Box<[String]>,
 }
 
 #[derive(Archive, Serialize)]
+#[archive_attr(derive(CheckBytes))]
 pub struct Img {
     pub path: String,
     pub img: Box<[u8]>,
 }
 
 #[derive(Archive, Serialize, Deserialize)]
+#[archive_attr(derive(CheckBytes))]
 pub struct Animation {
-    pub animation: Box<[(BitPack, Duration)]>,
+    pub animation: Box<[Tuple2<BitPack, Duration>]>,
     pub path: String,
-    pub dimensions: (u32, u32),
+    pub dimensions: Tuple2<u32, u32>,
 }
 
-pub type AnimationRequest = Box<[(Animation, Box<[String]>)]>;
-pub type ImageRequest = (Transition, Box<[(Img, Box<[String]>)]>);
+pub type AnimationRequest = Box<[Tuple2<Animation, Box<[String]>>]>;
+pub type ImageRequest = Tuple2<Transition, Box<[Tuple2<Img, Box<[String]>>]>>;
 
 #[derive(Archive, Serialize)]
+#[archive_attr(derive(CheckBytes))]
 pub enum Request {
     Animation(AnimationRequest),
     Clear(Clear),
@@ -233,7 +319,7 @@ impl Request {
         std::thread::scope(|s| {
             if let Self::Animation(animations) = self {
                 s.spawn(|| {
-                    for (animation, _) in animations.iter() {
+                    for Tuple2(animation, _) in animations.iter() {
                         if let Err(e) = cache::store_animation_frames(animation) {
                             eprintln!("Error storing cache for {}: {e}", animation.path);
                         }
@@ -247,8 +333,8 @@ impl Request {
             if let Err(e) = writer.write_all(&bytes) {
                 Err(format!("failed to write serialized request: {e}"))
             } else {
-                if let Self::Img((_, imgs)) = self {
-                    for (Img { path, .. }, outputs) in imgs.iter() {
+                if let Self::Img(Tuple2(_, imgs)) = self {
+                    for Tuple2(Img { path, .. }, outputs) in imgs.iter() {
                         for output in outputs.iter() {
                             if let Err(e) = super::cache::store(output, path) {
                                 eprintln!("ERROR: failed to store cache: {e}");
@@ -263,11 +349,12 @@ impl Request {
 
     #[must_use]
     pub fn receive(bytes: &[u8]) -> &ArchivedRequest {
-        unsafe { rkyv::archived_root::<Self>(bytes) }
+        rkyv::check_archived_root::<Self>(bytes).unwrap()
     }
 }
 
 #[derive(Archive, Serialize)]
+#[archive_attr(derive(CheckBytes))]
 pub enum Answer {
     Ok,
     Err(String),
@@ -294,7 +381,7 @@ impl Answer {
 
     #[must_use]
     pub fn receive(bytes: &[u8]) -> &ArchivedAnswer {
-        unsafe { rkyv::archived_root::<Self>(bytes) }
+        rkyv::check_archived_root::<Self>(bytes).unwrap()
     }
 }
 
@@ -310,7 +397,7 @@ pub fn read_socket(stream: &UnixStream) -> Result<Vec<u8>, String> {
                 if e.kind() == std::io::ErrorKind::WouldBlock && tries < 5 {
                     std::thread::sleep(Duration::from_millis(1));
                 } else {
-                  return Err(format!("failed to read serialized length: {e}"));
+                    return Err(format!("failed to read serialized length: {e}"));
                 }
             }
         }

@@ -45,7 +45,7 @@ use wayland_client::{
     Connection, QueueHandle,
 };
 
-use utils::ipc::{get_socket_path, Answer, ArchivedRequest, BgInfo, Request};
+use utils::ipc::{get_socket_path, Answer, ArchivedRequest, ArchivedTuple2, BgInfo, Request};
 
 use animations::Animator;
 
@@ -282,7 +282,7 @@ impl Daemon {
         let answer = match request {
             ArchivedRequest::Animation(animations) => {
                 let mut wallpapers = Vec::new();
-                for (_, names) in animations.iter() {
+                for ArchivedTuple2(_, names) in animations.iter() {
                     wallpapers.push(self.find_wallpapers_by_names(names));
                 }
                 self.animator.animate(bytes, wallpapers)
@@ -319,7 +319,7 @@ impl Daemon {
                 Answer::Ok
             }
             ArchivedRequest::Query => Answer::Info(self.wallpapers_info()),
-            ArchivedRequest::Img((_, imgs)) => {
+            ArchivedRequest::Img(ArchivedTuple2(_, imgs)) => {
                 self.initializing = false;
                 let mut used_wallpapers = Vec::new();
                 for img in imgs.iter() {
@@ -349,7 +349,8 @@ impl Daemon {
                             dim: info
                                 .logical_size
                                 .map(|(width, height)| (width as u32, height as u32))
-                                .unwrap_or((0, 0)),
+                                .unwrap_or((0, 0))
+                                .into(),
                             scale_factor: info.scale_factor,
                             img: wallpaper.get_img_info(),
                         });

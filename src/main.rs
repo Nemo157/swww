@@ -3,7 +3,10 @@ use std::{os::unix::net::UnixStream, path::PathBuf, process::Stdio, time::Durati
 
 use utils::{
     cache,
-    ipc::{self, get_socket_path, read_socket, AnimationRequest, Answer, ArchivedAnswer, Request},
+    ipc::{
+        self, get_socket_path, read_socket, AnimationRequest, Answer, ArchivedAnswer, Request,
+        Tuple2,
+    },
 };
 
 mod imgproc;
@@ -196,7 +199,7 @@ fn make_img_request(
     let transition = make_transition(img);
     let mut unique_requests = Vec::with_capacity(dims.len());
     for (dim, outputs) in dims.iter().zip(outputs) {
-        unique_requests.push((
+        unique_requests.push(Tuple2(
             ipc::Img {
                 img: match img.resize {
                     ResizeStrategy::No => img_pad(img_raw.clone(), *dim, &img.fill_color)?,
@@ -226,7 +229,7 @@ fn make_img_request(
         ));
     }
 
-    Ok((transition, unique_requests.into_boxed_slice()))
+    Ok(Tuple2(transition, unique_requests.into_boxed_slice()))
 }
 
 #[allow(clippy::type_complexity)]
@@ -290,7 +293,7 @@ fn make_animation_request(
         if img.resize == ResizeStrategy::Crop {
             match cache::load_animation_frames(&img.path, *dim) {
                 Ok(Some(animation)) => {
-                    animations.push((animation, outputs.to_owned().into_boxed_slice()));
+                    animations.push(Tuple2(animation, outputs.to_owned().into_boxed_slice()));
                     continue;
                 }
                 Ok(None) => (),
@@ -301,7 +304,7 @@ fn make_animation_request(
         let imgbuf = ImgBuf::new(&img.path)?;
         let animation = ipc::Animation {
             path: img.path.to_string_lossy().to_string(),
-            dimensions: *dim,
+            dimensions: (*dim).into(),
             animation: compress_frames(
                 imgbuf.into_frames()?,
                 *dim,
@@ -311,7 +314,7 @@ fn make_animation_request(
             )?
             .into_boxed_slice(),
         };
-        animations.push((animation, outputs.to_owned().into_boxed_slice()));
+        animations.push(Tuple2(animation, outputs.to_owned().into_boxed_slice()));
     }
     Ok(animations.into_boxed_slice())
 }
