@@ -163,55 +163,78 @@ pub fn img_pad(
 ) -> Result<Vec<u8>, String> {
     let (padded_w, padded_h) = dimensions;
     let (padded_w, padded_h) = (padded_w as usize, padded_h as usize);
-    let mut padded = Vec::with_capacity(padded_h * padded_w * 3);
 
     let img = image::imageops::crop(&mut img, 0, 0, dimensions.0, dimensions.1).to_image();
     let (img_w, img_h) = img.dimensions();
     let (img_w, img_h) = (img_w as usize, img_h as usize);
+
+    // `u32::div` rounds toward 0, so, if `img_h/w` is odd add an extra pixel to the bottom/right
+    // border to ensure the col/row is the correct height/width.
+    img_pad_borders(
+        img,
+        [
+            ((padded_h - img_h) / 2) as u32,
+            ((padded_w - img_w) / 2) as u32,
+            ((padded_h - img_h) / 2 + (img_h % 2)) as u32,
+            ((padded_w - img_w) / 2 + (img_w % 2)) as u32,
+        ],
+        color,
+    )
+}
+
+pub fn img_pad_borders(
+    img: RgbImage,
+    [top, left, bottom, right]: [u32; 4],
+    color: &[u8; 3],
+) -> Result<Vec<u8>, String> {
+    let (top, left, bottom, right) = (top as usize, left as usize, bottom as usize, right as usize);
+    let (img_w, img_h) = img.dimensions();
+    let (img_w, img_h) = (img_w as usize, img_h as usize);
+    let (padded_w, padded_h) = (img_w + left + right, img_h + top + bottom);
+
+    let mut padded = Vec::with_capacity(padded_h * padded_w * 3);
+
     let raw_img = img.into_vec();
 
-    for _ in 0..(((padded_h - img_h) / 2) * padded_w) {
-        padded.push(color[2]);
-        padded.push(color[1]);
+    for _ in 0..(top * padded_w) {
         padded.push(color[0]);
+        padded.push(color[1]);
+        padded.push(color[2]);
     }
 
-    // Calculate left and right border widths. `u32::div` rounds toward 0, so, if `img_w` is odd,
-    // add an extra pixel to the right border to ensure the row is the correct width.
-    let left_border_w = (padded_w - img_w) / 2;
-    let right_border_w = left_border_w + (img_w % 2);
-
     for row in 0..img_h {
-        for _ in 0..left_border_w {
-            padded.push(color[2]);
-            padded.push(color[1]);
+        for _ in 0..left {
             padded.push(color[0]);
+            padded.push(color[1]);
+            padded.push(color[2]);
         }
 
         for pixel in raw_img[(row * img_w * 3)..((row + 1) * img_w * 3)].chunks_exact(3) {
-            padded.push(pixel[2]);
-            padded.push(pixel[1]);
             padded.push(pixel[0]);
+            padded.push(pixel[1]);
+            padded.push(pixel[2]);
         }
-        for _ in 0..right_border_w {
-            padded.push(color[2]);
-            padded.push(color[1]);
+        for _ in 0..right {
             padded.push(color[0]);
+            padded.push(color[1]);
+            padded.push(color[2]);
         }
     }
 
-    while padded.len() < (padded_h * padded_w * 3) {
-        padded.push(color[2]);
-        padded.push(color[1]);
+    for _ in 0..(bottom * padded_w) {
         padded.push(color[0]);
+        padded.push(color[1]);
+        padded.push(color[2]);
     }
+
+    debug_assert!(padded.len() == (padded_h * padded_w * 3));
 
     Ok(padded)
 }
 
 /// Convert an RGB &[u8] to BRG in-place by swapping bytes
 #[inline]
-fn rgb_to_brg(rgb: &mut [u8]) {
+pub fn rgb_to_brg(rgb: &mut [u8]) {
     for pixel in rgb.chunks_exact_mut(3) {
         pixel.swap(0, 2);
     }
@@ -273,11 +296,7 @@ pub fn img_resize_fit(
             padding_color,
         )
     } else {
-        let mut res = img.into_vec();
-        // The ARGB is 'little endian', so here we must  put the order
-        // of bytes 'in reverse', so it needs to be BGRA.
-        rgb_to_brg(&mut res);
-        Ok(res)
+        Ok(img.into_vec())
     }
 }
 
@@ -288,7 +307,7 @@ pub fn img_resize_crop(
 ) -> Result<Vec<u8>, String> {
     let (width, height) = dimensions;
     let (img_w, img_h) = img.dimensions();
-    let mut resized_img = if (img_w, img_h) != (width, height) {
+    let resized_img = if (img_w, img_h) != (width, height) {
         let src = match fast_image_resize::Image::from_vec_u8(
             // We unwrap below because we know the images's dimensions should never be 0
             NonZeroU32::new(img_w).unwrap(),
@@ -318,10 +337,6 @@ pub fn img_resize_crop(
     } else {
         img.into_vec()
     };
-
-    // The ARGB is 'little endian', so here we must  put the order
-    // of bytes 'in reverse', so it needs to be BGRA.
-    rgb_to_brg(&mut resized_img);
 
     Ok(resized_img)
 }

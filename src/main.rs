@@ -114,6 +114,7 @@ fn process_swww_args(args: &Swww) -> Result<(), String> {
                         outputs: output.to_string(),
                         no_resize: false,
                         resize: ResizeStrategy::Crop,
+                        borders: [0, 0, 0, 0],
                         fill_color: [0, 0, 0],
                         filter: cli::Filter::Lanczos3,
                         transition_type: cli::TransitionType::None,
@@ -199,21 +200,33 @@ fn make_img_request(
     let transition = make_transition(img);
     let mut unique_requests = Vec::with_capacity(dims.len());
     for (dim, outputs) in dims.iter().zip(outputs) {
+        let smol_dim = (
+            dim.0 - img.borders[1] - img.borders[3],
+            dim.1 - img.borders[0] - img.borders[2],
+        );
+        let mut image = match img.resize {
+            ResizeStrategy::No => img_pad(img_raw.clone(), smol_dim, &img.fill_color)?,
+            ResizeStrategy::Crop => {
+                img_resize_crop(img_raw.clone(), smol_dim, make_filter(&img.filter))?
+            }
+            ResizeStrategy::Fit => img_resize_fit(
+                img_raw.clone(),
+                smol_dim,
+                make_filter(&img.filter),
+                &img.fill_color,
+            )?,
+        };
+        if img.borders[0] > 0 || img.borders[1] > 0 || img.borders[2] > 0 || img.borders[3] > 0 {
+            image = img_pad_borders(
+                image::RgbImage::from_raw(smol_dim.0, smol_dim.1, image).unwrap(),
+                img.borders,
+                &img.fill_color,
+            )?;
+        }
+        rgb_to_brg(&mut image);
         unique_requests.push(Tuple2(
             ipc::Img {
-                img: match img.resize {
-                    ResizeStrategy::No => img_pad(img_raw.clone(), *dim, &img.fill_color)?,
-                    ResizeStrategy::Crop => {
-                        img_resize_crop(img_raw.clone(), *dim, make_filter(&img.filter))?
-                    }
-                    ResizeStrategy::Fit => img_resize_fit(
-                        img_raw.clone(),
-                        *dim,
-                        make_filter(&img.filter),
-                        &img.fill_color,
-                    )?,
-                }
-                .into_boxed_slice(),
+                img: image.into_boxed_slice(),
                 path: match img.path.canonicalize() {
                     Ok(p) => p.to_string_lossy().to_string(),
                     Err(e) => {

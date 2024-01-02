@@ -36,6 +36,18 @@ fn from_hex(hex: &str) -> Result<[u8; 3], String> {
     Ok(color)
 }
 
+fn from_commas(s: &str) -> Result<[u32; 4], String> {
+    let mut values = s
+        .split(",")
+        .map(|s| s.parse::<u32>().map_err(|e| e.to_string()));
+    Ok([
+        values.next().ok_or("missing border".to_owned())??,
+        values.next().ok_or("missing border".to_owned())??,
+        values.next().ok_or("missing border".to_owned())??,
+        values.next().ok_or("missing border".to_owned())??,
+    ])
+}
+
 #[derive(Clone)]
 pub enum Filter {
     Nearest,
@@ -239,6 +251,10 @@ pub struct Img {
         default_value_if("no_resize", "true", "no")
     )]
     pub resize: ResizeStrategy,
+
+    /// Monitor border to subtract before resizing/centering (top,left,bottom,right)
+    #[arg(value_parser = from_commas, long, default_value = "0,0,0,0")]
+    pub borders: [u32; 4],
 
     /// Which color to fill the padding with when output image does not fill screen
     #[arg(value_parser = from_hex, long, default_value = "000000")]
